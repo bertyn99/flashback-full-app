@@ -1,5 +1,7 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
 
 class Settings(BaseSettings):
     # API Keys
@@ -11,17 +13,15 @@ class Settings(BaseSettings):
     # Base URLs and endpoints
     GLADIA_BASE_URL: str = "https://api.gladia.io/v2/"
 
-
     # Model settings
     MISTRAL_MODEL: str = "mistral-large-latest"
     ELEVEN_VOICE_ID: str = "Josh"
     ELEVEN_MODEL: str = "eleven_monolingual_v1"
 
     model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding='utf-8',
-        case_sensitive=True
+        env_file=".env", env_file_encoding="utf-8", case_sensitive=True
     )
+
 
 # Create global settings instance
 settings = Settings()

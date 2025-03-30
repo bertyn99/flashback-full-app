@@ -1,9 +1,12 @@
 # backend/app/services/file_service.py
-import pymupdf4llm
-from typing import List
-from ..models import Chapter
-import requests
 import re
+from typing import List
+
+import pymupdf4llm
+import requests
+
+from ..models import Chapter
+
 
 class FileProcessor:
     @staticmethod
@@ -31,24 +34,24 @@ class FileProcessor:
         current_title = ""
 
         # Split by markdown headers
-        lines = markdown_content.split('\n')
+        lines = markdown_content.split("\n")
         for line in lines:
-            if line.startswith('#'):
+            if line.startswith("#"):
                 if current_chapter:
-                    chapters.append(Chapter(
-                        title=current_title.strip(),
-                        content=current_chapter.strip()
-                    ))
-                current_title = line.lstrip('#').strip()
+                    chapters.append(
+                        Chapter(
+                            title=current_title.strip(), content=current_chapter.strip()
+                        )
+                    )
+                current_title = line.lstrip("#").strip()
                 current_chapter = ""
             else:
                 current_chapter += line + "\n"
 
         # Add the last chapter
         if current_chapter:
-            chapters.append(Chapter(
-                title=current_title.strip(),
-                content=current_chapter.strip()
-            ))
+            chapters.append(
+                Chapter(title=current_title.strip(), content=current_chapter.strip())
+            )
 
         return chapters

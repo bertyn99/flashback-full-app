@@ -1,15 +1,17 @@
-import uuid
-from fastapi import FastAPI, HTTPException, UploadFile, File, WebSocket, WebSocketDisconnect
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import List, Optional
 import asyncio
 import os
+import uuid
+from typing import List, Optional
 
-from .services.file_service import FileProcessor
+from fastapi import (FastAPI, File, HTTPException, UploadFile, WebSocket,
+                     WebSocketDisconnect)
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+
 from .services.ai_service import AIProcessor
-from .services.video_service import VideoProcessor
 from .services.db_service import db_service
+from .services.file_service import FileProcessor
+from .services.video_service import VideoProcessor
 
 app = FastAPI()
 
@@ -26,20 +28,21 @@ file_processor = FileProcessor()
 ai_processor = AIProcessor()
 video_processor = VideoProcessor()
 
+
 class ProcessingRequest(BaseModel):
     content_type: str  # "VS", "Key Moment", "Key Character", "Quiz"
     start_chapter: int
     end_chapter: int
     generate_all: bool = False
 
+
 class UploadResponse(BaseModel):
     task_id: str
     chapters: List[str]
 
+
 @app.post("/api/upload")
-async def upload_file(
-    file: UploadFile = File(...)
-):
+async def upload_file(file: UploadFile = File(...)):
     try:
         # Validate file
         if not file.filename:
@@ -51,11 +54,13 @@ async def upload_file(
         file.file.seek(0)  # Reset file pointer
 
         if file_size > 100 * 1024 * 1024:  # 100 MB
-            raise HTTPException(status_code=413, detail="File too large. Maximum size is 100MB")
+            raise HTTPException(
+                status_code=413, detail="File too large. Maximum size is 100MB"
+            )
 
         # Generate a unique task ID
         task_id = str(uuid.uuid4())
-        task_path  = f"./artifacts/{task_id}"
+        task_path = f"./artifacts/{task_id}"
         os.makedirs(task_path, exist_ok=True)
 
         # Save uploaded file temporarily
@@ -76,22 +81,20 @@ async def upload_file(
         except Exception as e:
             # Clean up temporary file
             os.remove(temp_path)
-            raise HTTPException(status_code=422, detail=f"Error processing file: {str(e)}")
+            raise HTTPException(
+                status_code=422, detail=f"Error processing file: {str(e)}"
+            )
 
         # Store task context in SQLite
         await db_service.store_task(
             task_id=task_id,
             filename=file.filename,
-            chapters=[
-                {"title": chapter}
-                for chapter in chapters_of_subject
-            ]
+            chapters=[{"title": chapter} for chapter in chapters_of_subject],
         )
 
         # Store task context (could use Redis or another state management)
         return UploadResponse(
-            task_id=task_id,
-            chapters=[chapter for chapter in chapters_of_subject]
+            task_id=task_id, chapters=[chapter for chapter in chapters_of_subject]
         )
 
     except HTTPException:
@@ -103,18 +106,18 @@ async def upload_file(
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
     finally:
         # Ensure file is closed
-        if 'file' in locals():
+        if "file" in locals():
             await file.close()
 
         # Remove temporary file if it exists
-        if 'temp_path' in locals() and os.path.exists(temp_path):
+        if "temp_path" in locals() and os.path.exists(temp_path):
             os.remove(temp_path)
 
 
 @app.get("/api/seelab")
 async def see_lab():
     task_id = str(uuid.uuid4())
-    task_path  = f"./artifacts/{task_id}"
+    task_path = f"./artifacts/{task_id}"
     os.makedirs(task_path, exist_ok=True)
 
     image_url = await ai_processor.generate_image("test", task_path)
@@ -127,7 +130,7 @@ async def websocket_processing(
     task_id: str,
     content_type: str = "KeyMoment",
     start_chapter: int = 0,
-    end_chapter: int = 3
+    end_chapter: int = 3,
 ):
     # Validate input parameters
     if not task_id:
@@ -143,19 +146,17 @@ async def websocket_processing(
         print(chapters)
 
         # Process selected chapters
-        selected_chapters = chapters[start_chapter:end_chapter+1]
+        selected_chapters = chapters[start_chapter : end_chapter + 1]
 
-    
         script = await ai_processor.generate_script(
-                selected_chapters[0],
-                content_type=content_type
-            )
+            selected_chapters[0], content_type=content_type
+        )
         print(script)
-            # Generate voiceover
-        audio_path = "./videos/audio/audio_2109b2b8-df3c-465a-af46-aecdf223e8d8.mp3" # await ai_processor.generate_voiceover(script) """
+        # Generate voiceover
+        audio_path = "./videos/audio/audio_2109b2b8-df3c-465a-af46-aecdf223e8d8.mp3"  # await ai_processor.generate_voiceover(script) """
         # Generate subtitles
         subtitles = await ai_processor.generate_subtitles(audio_path)
-        
+
         """   for idx, chapter in enumerate(selected_chapters):
             # Update progress
             await websocket.send_json({
@@ -197,18 +198,15 @@ async def websocket_processing(
             await asyncio.sleep(1)
         """
         # Final completion message
-        await websocket.send_json({
-            "status": "completed",
-            "message": "All chapters processed successfully"
-        })
+        await websocket.send_json(
+            {"status": "completed", "message": "All chapters processed successfully"}
+        )
 
     except Exception as e:
-        await websocket.send_json({
-            "status": "error",
-            "message": str(e)
-        })
+        await websocket.send_json({"status": "error", "message": str(e)})
     finally:
         await websocket.close()
+
 
 # Helper function to retrieve task context (would be more robust with actual state management)
 async def get_chapters_for_task(task_id: str):

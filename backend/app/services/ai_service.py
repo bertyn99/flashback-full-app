@@ -1,3 +1,4 @@
+import mimetypes
 from pydantic_ai import Agent
 from pydantic_ai.models.mistral import MistralModel
 from pydantic_ai.providers.mistral import MistralProvider
@@ -42,9 +43,9 @@ class AIProcessor:
         }
       
         # Select appropriate prompt generator
-        generator = prompt_templates.get(content_type, self._generate_default_script)
+        generator = self._generate_key_moment_script#prompt_templates.get(content_type, self._generate_default_script)
 
-        return await generator(chapter)
+        return await self._generate_key_moment_script(chapter)
 
     async def generate_voiceover(self, text: str) -> str:
         """Generate voice over using Eleven Labs"""
@@ -61,31 +62,50 @@ class AIProcessor:
 
     async def generate_subtitles(self, audio_path: str) -> Dict[str, Any]:
         """Generate subtitles using Gladia API via HTTP"""
+    
         try:
-            # Prepare the audio file for upload
+        # Prepare the audio file for upload
             with open(audio_path, "rb") as audio_file:
-                files = {"audio": ("audio.mp3", audio_file, "audio/mpeg")}
+                # Prepare the files dictionary
+                filename = os.path.basename(audio_path)
+                mime_type = mimetypes.guess_type(audio_path)[0] or "audio/mp3"
+                print(mime_type)
+              
+                payload =  f"-----011000010111000001101001\r\nContent-Disposition: form-data; name=\"audio\"; filename=\"${filename}\"\r\nContent-Type: ${mime_type}\r\n\r\n\r\n-----011000010111000001101001--\r\n"
 
+                # Upload the file
                 headers = {
-                        "x-gladia-key": self.gladia_api_key,
-                        "Content-Type": "multipart/form-data"
+                    "Content-Type": "multipart/form-data; boundary=---011000010111000001101001",
+                    "x-gladia-key": "bdd4342d-b001-440e-8251-db42eb5edaec"
                 }
 
+                
+                
+                # Additional parameters for transcription if needed
+                data = {
+                    "language": "fr",  # Assuming French based on your script generation
+                    "subtitles_format": "srt"
+                }
+                
                 # Make the transcription request
-                response =  requests.post(
+                response = requests.post(
                     f"{self.gladia_base_url}upload",
                     headers=headers,
-                    data=files
+                    data=payload
                 )
-                print(response)
-                if response.status_code == 200:
-                    return response.json()
-                else:
-                    # Handle error cases
-                    response.raise_for_status()
+                
+                print(f"Gladia API response status: {response.status_code}")
+                
+            if response.status_code == 200:
+                return response.json()
+            else:
+                print(f"Error response: {response.text}")
+                response.raise_for_status()
+                
         except requests.exceptions.HTTPError as http_err:
             print(f"HTTP error occurred: {http_err}")
-
+        except Exception as e:
+            print(f"Unexpected error: {e}")
 
 
     async def _generate_vs_script(self, chapter):
