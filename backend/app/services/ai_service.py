@@ -46,7 +46,6 @@ class AIProcessor:
             "KeyCharacter": self._generate_character_script,
             "Quiz": self._generate_quiz_script
         }
-      
         # Select appropriate prompt generator
         generator = self._generate_key_moment_script#prompt_templates.get(content_type, self._generate_default_script)
 
@@ -144,7 +143,10 @@ the content of the srt file:""")
 
     async def _generate_vs_script(self, chapter):
         # VS-specific script generation logic
-        agent=Agent(self.mistral_model, system_prompt="Generate a list of subjects from the given content.")
+        agent=Agent(
+            model="mistral-large-latest",
+            system_prompt="Generate a list of subjects from the given content."
+        )
         list_of_subject = await agent.run(chapter)
         return list_of_subject
 
@@ -169,7 +171,7 @@ For this  subject:""")
 
     async def _generate_default_script(self, chapter):
         # Fallback script generation
-        agent=Agent(model=self.mistral_model, system_prompt= f"""
+        agent=Agent(self.mistral_model, system_prompt= f"""
 enrich the content and create a short script for a Short Video to explain the subject in a fun way.
 The complete vocal script must not have more than 300 words. Always include a date. Additionally, include important people or events.
 Keep the content in French.
@@ -211,11 +213,12 @@ For this subject:""")
         """
         Generate a list of subjects from the given content using Mistral AI.
         """
-        agent=Agent(self.mistral_model, result_type=List[str], system_prompt= f"""
-Generate a list of key subjects from the given content, give enough info about the subject and don't repeat key subjects.
-Every subject has to be unique in the list.
-The subject needs to have at least 2 words and should be understandable.
-If we need to generate a short video about it.
-Give just the list of subjects.""")
+        agent=Agent(
+            self.mistral_model,
+            result_type=List[str],
+            system_prompt= f"""
+Generate a list of key subjects from the given content give enough info about the subject and dont repeat key subject
+each need to be unique in the list.The need subject need to have at least 2 word and need to be enough comprehensible
+if we need to generate a short video about it. Gave just the list of subject.""")
         list_of_subject = await agent.run(content)
         return list_of_subject.data
