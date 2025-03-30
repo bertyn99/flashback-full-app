@@ -81,7 +81,7 @@ class AIProcessor:
                 # Upload the file
                 headers = {
                     "Content-Type": "multipart/form-data; boundary=---011000010111000001101001",
-                    "x-gladia-key": "bdd4342d-b001-440e-8251-db42eb5edaec"
+                    "x-gladia-key": self.gladia_api_key
                 }
 
                 
