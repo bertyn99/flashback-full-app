@@ -126,12 +126,10 @@ async def websocket_processing(
         # Retrieve stored file and chapters
         chapters = await db_service.get_chapters(task_id)
         
-        print(chapters)
     
         # Process selected chapters
         selected_chapters = chapters[start_chapter:end_chapter+1]
         
-        print(selected_chapters)
         for idx, chapter in enumerate(selected_chapters):
             # Update progress
             await websocket.send_json({
@@ -140,14 +138,17 @@ async def websocket_processing(
                 "total_chapters": len(selected_chapters)
             })
             
+            print(chapter)
             # Generate script based on content type
             script = await ai_processor.generate_script(
                 chapter, 
                 content_type=content_type
             )
             
+            print(script)
             # Generate voiceover
             audio_path = await ai_processor.generate_voiceover(script)
+            print(audio_path)
             
             # Generate subtitles
             subtitles = await ai_processor.generate_subtitles(audio_path)

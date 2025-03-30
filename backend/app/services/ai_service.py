@@ -19,7 +19,7 @@ class AIProcessor:
         self.agent = Agent(self.mistral_model)
         
         self.elevenlabs_client =  ElevenLabs(
-    api_key=os.getenv(settings.ELEVEN_API_KEY),
+    api_key=settings.ELEVEN_API_KEY,
 )
         # Gladia API configuration
         self.gladia_api_key = settings.GLADIA_API_KEY
@@ -37,7 +37,7 @@ class AIProcessor:
             "KeyCharacter": self._generate_character_script,
             "Quiz": self._generate_quiz_script
         }
-        
+        print(content_type)
         # Select appropriate prompt generator
         generator = prompt_templates.get(content_type, self._generate_default_script)
         
@@ -47,12 +47,12 @@ class AIProcessor:
         """Generate voice over using Eleven Labs"""
         audio = self.elevenlabs_client.text_to_speech.convert(
             text=text,
-            voice_id="Chris",
-            model="eleven_multilingual_v2"
+            voice_id="iP95p4xoKVk53GoZ742B",
+            model_id="eleven_multilingual_v2"
         )
         
         # Save audio file and return path
-        audio_path = f"audio_{uuid.uuid4()}.mp3"
+        audio_path = f"/videos/audio/audio_{uuid.uuid4()}.mp3"
         save(audio, audio_path)
         return audio_path
     
@@ -89,8 +89,17 @@ class AIProcessor:
         return list_of_subject
     
     async def _generate_key_moment_script(self, chapter):
-        # Key Moment specific script generation
-        pass
+        print('ici')
+        agent=Agent(self.mistral_model,  system_prompt= f""" 
+
+enrich the content and create a short script for a Short Video to explain the subject in a fun way.
+The complete vocal script must not have more than 300 words. Always include a date. Additionally, include important people or events.
+Keep the content in French.
+
+The output must be a simple text containing the paragraphs, without sections.
+For this historical subject:""")
+        default_scrypt = await agent.run(chapter)
+        return default_scrypt.data
     
     async def _generate_character_script(self, chapter):
         # Character focus script generation
@@ -122,7 +131,7 @@ For this historical subject:""")
         """
         Generate a list of subjects from the given content using Mistral AI.
         """
-        agent=Agent( self.mistral_model,result_type=List[str],  system_prompt="Generate a list of subjects from the given content give enough info about the subject and dont repeat subject each need to be unique in the list. Gave just the list of subject.")
+        agent=Agent( self.mistral_model,result_type=List[str],  system_prompt="Generate a list of key subjects from the given content give enough info about the subject and dont repeat key subject each need to be unique in the list.The need subject need to have at least 2 word and need to be enough comprehensible if we need to generate a short video about it. Gave just the list of subject.")
         list_of_subject = await agent.run(content)
         return list_of_subject.data
   
