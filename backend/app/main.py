@@ -145,14 +145,14 @@ async def websocket_processing(
         # Process selected chapters
         selected_chapters = chapters[start_chapter:end_chapter+1]
 
-        print(selected_chapters)
+    
         script = await ai_processor.generate_script(
                 selected_chapters[0],
                 content_type=content_type
             )
-
+        print(script)
             # Generate voiceover
-        audio_path = await ai_processor.generate_voiceover(script)
+        audio_path = "./videos/audio/audio_2109b2b8-df3c-465a-af46-aecdf223e8d8.mp3" # await ai_processor.generate_voiceover(script) """
         # Generate subtitles
         subtitles = await ai_processor.generate_subtitles(audio_path)
         

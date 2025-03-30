@@ -61,27 +61,30 @@ class AIProcessor:
 
     async def generate_subtitles(self, audio_path: str) -> Dict[str, Any]:
         """Generate subtitles using Gladia API via HTTP"""
-        async with httpx.AsyncClient() as client:
+        try:
             # Prepare the audio file for upload
             with open(audio_path, "rb") as audio_file:
                 files = {"audio": ("audio.mp3", audio_file, "audio/mpeg")}
 
                 headers = {
-                    "X-API-Key": self.gladia_api_key
+                        "x-gladia-key": self.gladia_api_key,
+                        "Content-Type": "multipart/form-data"
                 }
 
                 # Make the transcription request
-                response = await client.post(
-                    f"{self.gladia_base_url}transcription",
+                response =  requests.post(
+                    f"{self.gladia_base_url}upload",
                     headers=headers,
-                    files=files
+                    data=files
                 )
-
+                print(response)
                 if response.status_code == 200:
                     return response.json()
                 else:
                     # Handle error cases
                     response.raise_for_status()
+        except requests.exceptions.HTTPError as http_err:
+            print(f"HTTP error occurred: {http_err}")
 
 
 
@@ -121,7 +124,7 @@ The complete vocal script must not have more than 300 words. Always include a da
 Keep the content in French.
 
 The output must be a simple text containing the paragraphs, without sections.
-For this historical subject:""")
+For this subject:""")
         default_scrypt = await agent.run(chapter)
         return default_scrypt
 
