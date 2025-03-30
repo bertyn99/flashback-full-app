@@ -5,7 +5,7 @@ from elevenlabs import ElevenLabs, save
 import httpx
 import os
 import uuid
-from typing import Any, Dict
+from typing import Any, Dict, List
 from ..models import Chapter
 from ..config import settings
 
@@ -13,7 +13,7 @@ class AIProcessor:
     def __init__(self):
         # Initialize Mistral model with PydanticAI
         self.mistral_model = MistralModel(
-            'mistral-large-latest',
+            'mistral-small-latest',
             provider=MistralProvider(api_key=settings.MISTRAL_API_KEY)
         )
         self.agent = Agent(self.mistral_model)
@@ -102,7 +102,14 @@ class AIProcessor:
     
     async def _generate_default_script(self, chapter):
         # Fallback script generation
-        agent=Agent(model="mistral-large-latest",  system_prompt="Generate a list of subjects from the given content.")
+        agent=Agent(self.mistral_model,  system_prompt= f""" 
+
+enrich the content and create a short script for a Short Video to explain the subject in a fun way.
+The complete vocal script must not have more than 300 words. Always include a date. Additionally, include important people or events.
+Keep the content in French.
+
+The output must be a simple text containing the paragraphs, without sections.
+For this historical subject:""")
         default_scrypt = await agent.run(chapter)
         return default_scrypt
     
@@ -115,7 +122,7 @@ class AIProcessor:
         """
         Generate a list of subjects from the given content using Mistral AI.
         """
-        agent=Agent(model="mistral-large-latest",  system_prompt="Generate a list of subjects from the given content.")
+        agent=Agent( self.mistral_model,result_type=List[str],  system_prompt="Generate a list of subjects from the given content give enough info about the subject and dont repeat subject each need to be unique in the list. Gave just the list of subject.")
         list_of_subject = await agent.run(content)
-        return list_of_subject
+        return list_of_subject.data
   

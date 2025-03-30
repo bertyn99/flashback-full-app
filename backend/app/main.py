@@ -64,7 +64,8 @@ async def upload_file(
         # Process file and split into chapters
         try:
             content = await file_processor.process_file(temp_path)
-            chapters = file_processor.split_into_chapters(content)
+            chapters_of_subject = await ai_processor.generact_list_of_subject(content)
+            print(chapters_of_subject)
         except Exception as e:
             # Clean up temporary file
             os.remove(temp_path)
@@ -78,15 +79,15 @@ async def upload_file(
             task_id=task_id, 
             filename=file.filename, 
             chapters=[
-                {"title": chapter.title, "content": chapter.content} 
-                for chapter in chapters
-            ]
+                {"title": chapter} 
+                for chapter in chapters_of_subject
+            ]   
         )
         
         # Store task context (could use Redis or another state management)
         return UploadResponse(
             task_id=task_id,
-            chapters=[chapter.title for chapter in chapters]
+            chapters=[chapter for chapter in chapters_of_subject]
         )
     
     except HTTPException:
