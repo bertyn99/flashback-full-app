@@ -40,6 +40,7 @@ class AIProcessor:
             "KeyCharacter": self._generate_character_script,
             "Quiz": self._generate_quiz_script
         }
+      
         # Select appropriate prompt generator
         generator = prompt_templates.get(content_type, self._generate_default_script)
 
