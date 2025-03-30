@@ -140,7 +140,17 @@ async def websocket_processing(
         selected_chapters = chapters[start_chapter:end_chapter+1]
 
         print(selected_chapters)
-        for idx, chapter in enumerate(selected_chapters):
+        script = await ai_processor.generate_script(
+                selected_chapters[0],
+                content_type=content_type
+            )
+
+            # Generate voiceover
+        audio_path = await ai_processor.generate_voiceover(script)
+        # Generate subtitles
+        subtitles = await ai_processor.generate_subtitles(audio_path)
+        
+        """   for idx, chapter in enumerate(selected_chapters):
             # Update progress
             await websocket.send_json({
                 "status": "processing",
@@ -179,7 +189,7 @@ async def websocket_processing(
 
             # Optional: small delay between chapters
             await asyncio.sleep(1)
-
+        """
         # Final completion message
         await websocket.send_json({
             "status": "completed",

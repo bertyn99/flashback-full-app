@@ -9,6 +9,7 @@ import uuid
 from typing import Any, Dict, List
 from ..models import Chapter
 from ..config import settings
+from .file_service import FileProcessor
 
 class AIProcessor:
     def __init__(self):
@@ -40,7 +41,7 @@ class AIProcessor:
             "KeyCharacter": self._generate_character_script,
             "Quiz": self._generate_quiz_script
         }
-        print(content_type)
+      
         # Select appropriate prompt generator
         generator = prompt_templates.get(content_type, self._generate_default_script)
 
@@ -55,7 +56,7 @@ class AIProcessor:
         )
 
         # Save audio file and return path
-        audio_path = f"/videos/audio/audio_{uuid.uuid4()}.mp3"
+        audio_path = f"./videos/audio/audio_{uuid.uuid4()}.mp3"
         save(audio, audio_path)
         return audio_path
 
@@ -100,7 +101,7 @@ The complete vocal script must not have more than 300 words. Always include a da
 Keep the content in French.
 
 The output must be a simple text containing the paragraphs, without sections.
-For this historical subject:""")
+For this  subject:""")
         default_scrypt = await agent.run(chapter)
         return default_scrypt.data
 
