@@ -63,6 +63,11 @@ async def upload_file(file: UploadFile = File(...)):
         task_path = f"./artifacts/{task_id}"
         os.makedirs(task_path, exist_ok=True)
 
+        # Generate a unique task ID
+        task_id = str(uuid.uuid4())
+        task_path  = f"./artifacts/{task_id}"
+        os.makedirs(task_path, exist_ok=True)
+
         # Save uploaded file temporarily
 
         temp_path = f"{task_path}/{file.filename}"
@@ -180,7 +185,7 @@ async def websocket_processing(
             subtitles = await ai_processor.generate_subtitles(audio_path)
 
             # Generate image/visual
-            image_path = await ai_processor.generate_image(script, task_id)
+            image_path = await ai_processor.generate_image(script, task_path)
 
             # Merge into video
             video_path = await video_processor.create_video(

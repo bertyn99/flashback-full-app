@@ -1,4 +1,9 @@
 # backend/app/services/file_service.py
+from fastapi import HTTPException
+import pymupdf4llm
+from typing import List
+from ..models import Chapter
+import requests
 import re
 from typing import List
 
