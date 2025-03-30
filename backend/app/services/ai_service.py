@@ -33,8 +33,8 @@ class AIProcessor:
         """Generate script based on content type"""
         prompt_templates = {
             "VS": self._generate_vs_script,
-            "Key Moment": self._generate_key_moment_script,
-            "Key Character": self._generate_character_script,
+            "KeyMoment": self._generate_key_moment_script,
+            "KeyCharacter": self._generate_character_script,
             "Quiz": self._generate_quiz_script
         }
         
@@ -47,7 +47,7 @@ class AIProcessor:
         """Generate voice over using Eleven Labs"""
         audio = self.elevenlabs_client.text_to_speech.convert(
             text=text,
-            voice="Josh",
+            voice_id="Chris",
             model="eleven_multilingual_v2"
         )
         
@@ -84,7 +84,9 @@ class AIProcessor:
     
     async def _generate_vs_script(self, chapter):
         # VS-specific script generation logic
-        pass
+        agent=Agent(model="mistral-large-latest",  system_prompt="Generate a list of subjects from the given content.")
+        list_of_subject = await agent.run(chapter)
+        return list_of_subject
     
     async def _generate_key_moment_script(self, chapter):
         # Key Moment specific script generation
@@ -100,9 +102,20 @@ class AIProcessor:
     
     async def _generate_default_script(self, chapter):
         # Fallback script generation
-        pass
+        agent=Agent(model="mistral-large-latest",  system_prompt="Generate a list of subjects from the given content.")
+        default_scrypt = await agent.run(chapter)
+        return default_scrypt
     
     async def generate_image(self, script: str, content_type: str) -> str:
         """Generate image based on script and content type"""
         # Use an image generation service like DALL-E, Midjourney, etc.
         pass
+    
+    async def generact_list_of_subject(self, content:str):
+        """
+        Generate a list of subjects from the given content using Mistral AI.
+        """
+        agent=Agent(model="mistral-large-latest",  system_prompt="Generate a list of subjects from the given content.")
+        list_of_subject = await agent.run(content)
+        return list_of_subject
+  

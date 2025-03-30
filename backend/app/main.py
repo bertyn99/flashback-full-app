@@ -109,7 +109,7 @@ async def upload_file(
 async def websocket_processing(
    websocket: WebSocket, 
     task_id: str, 
-    content_type: str = "tiktok", 
+    content_type: str = "KeyMoment", 
     start_chapter: int = 0, 
     end_chapter: int = 3
 ):
