@@ -6,6 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     # API Keys
     MISTRAL_API_KEY: str
+    MISTRAL_AGENT_IMAGE_PROMPT: str
     ELEVEN_API_KEY: str
     GLADIA_API_KEY: str
     SEELAB_API_KEY: str

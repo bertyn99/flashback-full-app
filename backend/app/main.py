@@ -40,6 +40,12 @@ class UploadResponse(BaseModel):
     task_id: str
     chapters: List[str]
 
+@app.get("/api/test")
+async def test():
+    subtitles = open("./artifacts/sample/test.srt", "r").read()
+    srt_dict = await ai_processor.format_srt_to_dict(subtitles)
+    await export_subjects_to_image_prompts(srt_dict)
+    return {"message": "ok"}
 
 @app.post("/api/upload")
 async def upload_file(file: UploadFile = File(...)):
@@ -81,7 +87,7 @@ async def upload_file(file: UploadFile = File(...)):
         # Process file and split into chapters
         try:
             content = await file_processor.process_file(temp_path)
-            chapters_of_subject = await ai_processor.generact_list_of_subject(content)
+            chapters_of_subject = await ai_processor.generact_list_of_subjects(content)
             print(chapters_of_subject)
         except Exception as e:
             # Clean up temporary file
@@ -172,6 +178,7 @@ async def websocket_processing(
                 "chapter": idx + 1,
                 "total_chapters": len(selected_chapters)
             })
+
             # Generate script based on content type
             script = await ai_processor.generate_script(
                 chapter,
@@ -183,6 +190,10 @@ async def websocket_processing(
 
             # Generate subtitles
             subtitles = await ai_processor.generate_subtitles(audio_path)
+
+            # format srt to python dict of subtitles
+            srt_dict = await ai_processor.format_srt_to_dict(subtitles)
+            await export_subjects_to_image_prompts(srt_dict)
 
             # Generate image/visual
             image_path = await ai_processor.generate_image(script, task_path)
@@ -222,3 +233,15 @@ async def get_chapters_for_task(task_id: str):
     # For now, we'll use a simple in-memory approach
     # You'd want to implement proper task/state management
     pass
+
+async def export_subjects_to_image_prompts(subjects: List[str], output_dir: str = "./artifacts/sample") -> None:
+    """Export each subject to an image prompt file in the specified directory"""
+    for idx, subject in enumerate(subjects):
+        image_prompt = await ai_processor.prepare_image_prompt(subject)
+        print(image_prompt)
+        filename = f"{output_dir}/image_prompt_{idx}.txt"
+        if not os.path.exists(filename):
+            with open(filename, "w") as f:
+                f.write(image_prompt)
+        print(image_prompt)
+        await asyncio.sleep(3)
