@@ -6,6 +6,7 @@ import httpx
 import os
 import uuid
 from typing import Any, Dict
+from ..models import Chapter
 from ..config import settings
 
 class AIProcessor:
@@ -24,19 +25,23 @@ class AIProcessor:
         self.gladia_api_key = settings.GLADIA_API_KEY
         self.gladia_base_url = "https://api.gladia.io/v2/"
         
-    async def generate_script(self, chapter_title: str, chapter_content: str) -> Dict[str, Any]:
-        """Generate content using Mistral AI through PydanticAI"""
-        prompt = f"""
-        Create engaging content for:
-        Title: {chapter_title}
-        Content: {chapter_content}
+    async def generate_script(
+        self, 
+        chapter: Chapter, 
+        content_type: str
+    ) -> str:
+        """Generate script based on content type"""
+        prompt_templates = {
+            "VS": self._generate_vs_script,
+            "Key Moment": self._generate_key_moment_script,
+            "Key Character": self._generate_character_script,
+            "Quiz": self._generate_quiz_script
+        }
         
-        Please structure the response with natural sections for scene descriptions, 
-        narration points, and key elements to emphasize.
-        """
+        # Select appropriate prompt generator
+        generator = prompt_templates.get(content_type, self._generate_default_script)
         
-        result = await self.agent.run(prompt)
-        return result.data  # Returns parsed response from Mistral
+        return await generator(chapter)
     
     async def generate_voiceover(self, text: str) -> str:
         """Generate voice over using Eleven Labs"""
@@ -74,3 +79,30 @@ class AIProcessor:
                 else:
                     # Handle error cases
                     response.raise_for_status()
+                    
+   
+    
+    async def _generate_vs_script(self, chapter):
+        # VS-specific script generation logic
+        pass
+    
+    async def _generate_key_moment_script(self, chapter):
+        # Key Moment specific script generation
+        pass
+    
+    async def _generate_character_script(self, chapter):
+        # Character focus script generation
+        pass
+    
+    async def _generate_quiz_script(self, chapter):
+        # Quiz script generation
+        pass
+    
+    async def _generate_default_script(self, chapter):
+        # Fallback script generation
+        pass
+    
+    async def generate_image(self, script: str, content_type: str) -> str:
+        """Generate image based on script and content type"""
+        # Use an image generation service like DALL-E, Midjourney, etc.
+        pass
