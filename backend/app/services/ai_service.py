@@ -1,6 +1,7 @@
 from pydantic_ai import Agent
 from pydantic_ai.models.mistral import MistralModel
 from pydantic_ai.providers.mistral import MistralProvider
+from mistralai import Mistral
 from elevenlabs import ElevenLabs, save
 import httpx
 import requests
@@ -15,14 +16,17 @@ file_processor = FileProcessor()
 
 class AIProcessor:
     def __init__(self):
-        # Initialize Mistral model with PydanticAI
+        # mistral_model = "mistral-large-latest"
+        mistral_model = "mistral-small-latest"
         self.mistral_model = MistralModel(
-            'mistral-small-latest',
+            mistral_model,
             provider=MistralProvider(api_key=settings.MISTRAL_API_KEY)
         )
         self.agent = Agent(self.mistral_model)
+        self.mistral_client = Mistral(api_key=settings.MISTRAL_API_KEY)
+
         self.elevenlabs_client =  ElevenLabs(api_key=settings.ELEVEN_API_KEY)
-        # Gladia API configuration
+
         self.gladia_api_key = settings.GLADIA_API_KEY
         self.gladia_base_url = "https://api.gladia.io/v2/"
 
@@ -64,7 +68,6 @@ class AIProcessor:
             # Prepare the audio file for upload
             with open(audio_path, "rb") as audio_file:
                 files = {"audio": ("audio.mp3", audio_file, "audio/mpeg")}
-
                 headers = {
                     "X-API-Key": self.gladia_api_key
                 }
@@ -82,7 +85,28 @@ class AIProcessor:
                     # Handle error cases
                     response.raise_for_status()
 
+    async def format_srt_to_dict(self, subtitles: str) -> Dict[str, Any]:
+        """Format subtitles from SRT format to a dictionary"""
+        agent=Agent(self.mistral_model, system_prompt= f"""
+Extract all the sentences from the given content.
+Ignore timecodes, index numbers, and formatting tags.
+Output only a Python list of strings, where each string is a sentence from the subtitles.
+Return only the list, no explanation or extra text.
 
+the content of the srt file:""")
+        default_scrypt = await agent.run(subtitles)
+        return default_scrypt.data
+
+    async def prepare_image_prompt(self, subject: str) -> Dict[str, Any]:
+        print("preparing image prompt for subject:", subject)
+        """Prepare image prompt for the given subject"""
+        chatResponse = await self.mistral_client.agents.complete_async(model=self.mistral_model, messages=[
+            {
+                "content": subject,
+                "role": "user",
+            },
+        ], agent_id=settings.MISTRAL_AGENT_IMAGE_PROMPT)
+        return chatResponse.choices[0].message.content
 
     async def _generate_vs_script(self, chapter):
         # VS-specific script generation logic
@@ -160,8 +184,10 @@ For this historical subject:""")
             self.mistral_model,
             result_type=List[str],
             system_prompt= f"""
-Generate a list of key subjects from the given content give enough info about the subject and dont repeat key subject
-each need to be unique in the list.The need subject need to have at least 2 word and need to be enough comprehensible
-if we need to generate a short video about it. Gave just the list of subject.""")
+Generate a list of key subjects from the given content, give enough info about the subject and don't repeat key subjects.
+Every subject has to be unique in the list.
+The subject needs to have at least 2 words and should be understandable.
+If we need to generate a short video about it.
+Give just the list of subjects.""")
         list_of_subject = await agent.run(content)
         return list_of_subject.data
