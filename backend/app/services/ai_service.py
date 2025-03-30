@@ -17,21 +17,22 @@ file_processor = FileProcessor()
 
 class AIProcessor:
     def __init__(self):
-        # mistral_model = "mistral-large-latest"
-        mistral_model = "mistral-small-latest"
         self.mistral_model = MistralModel(
-            mistral_model,
+            "mistral-small-latest",
             provider=MistralProvider(api_key=settings.MISTRAL_API_KEY)
         )
         self.agent = Agent(self.mistral_model)
         self.mistral_client = Mistral(api_key=settings.MISTRAL_API_KEY)
 
         self.elevenlabs_client =  ElevenLabs(api_key=settings.ELEVEN_API_KEY)
+        self.elevenlabs_voice_id = settings.ELEVEN_VOICE_ID
+        self.elevenlabs_model = "eleven_multilingual_v2"
 
         self.gladia_api_key = settings.GLADIA_API_KEY
         self.gladia_base_url = "https://api.gladia.io/v2/"
 
         self.seelab_api_key = settings.SEELAB_API_KEY
+        self.seelab_style_id = 1003 # Flux HD
 
     async def generate_script(
         self,
@@ -55,8 +56,8 @@ class AIProcessor:
         """Generate voice over using Eleven Labs"""
         audio = self.elevenlabs_client.text_to_speech.convert(
             text=text,
-            voice_id="iP95p4xoKVk53GoZ742B",
-            model_id="eleven_multilingual_v2"
+            voice_id=self.eleven_voice_id,
+            model_id=self.elevenlabs_model
         )
 
         # Save audio file and return path
@@ -133,7 +134,7 @@ the content of the srt file:""")
     async def prepare_image_prompt(self, subject: str) -> Dict[str, Any]:
         print("preparing image prompt for subject:", subject)
         """Prepare image prompt for the given subject"""
-        chatResponse = await self.mistral_client.agents.complete_async(model=self.mistral_model, messages=[
+        chatResponse = await self.mistral_client.agents.complete_async(messages=[
             {
                 "content": subject,
                 "role": "user",
@@ -143,10 +144,7 @@ the content of the srt file:""")
 
     async def _generate_vs_script(self, chapter):
         # VS-specific script generation logic
-        agent=Agent(
-            model="mistral-large-latest",
-            system_prompt="Generate a list of subjects from the given content."
-        )
+        agent=Agent(self.mistral_model, system_prompt="Generate a list of subjects from the given content.")
         list_of_subject = await agent.run(chapter)
         return list_of_subject
 
@@ -171,7 +169,7 @@ For this  subject:""")
 
     async def _generate_default_script(self, chapter):
         # Fallback script generation
-        agent=Agent(self.mistral_model, system_prompt= f"""
+        agent=Agent(model=self.mistral_model, system_prompt= f"""
 enrich the content and create a short script for a Short Video to explain the subject in a fun way.
 The complete vocal script must not have more than 300 words. Always include a date. Additionally, include important people or events.
 Keep the content in French.
@@ -181,13 +179,13 @@ For this subject:""")
         default_scrypt = await agent.run(chapter)
         return default_scrypt
 
-    async def generate_image(self, script: str, task_path: str) -> str:
+    async def generate_image(self, script: str, filename: str, task_path: str) -> str:
         """Generate image based on script and content type"""
         # Use an image generation service like Seelab, DALL-E, Midjourney, etc.
         url = "https://app.seelab.ai/api/predict/text-to-image"
         payload = {
             "async": False,
-            "styleId": 1003,
+            "styleId": self.seelab_style_id,
             "params": {
                 "prompt": script,
                 "samples": "1",
@@ -204,7 +202,7 @@ For this subject:""")
         json_response = response.json()
         image_url = json_response["result"]["image"][0]["url"]
 
-        await file_processor.download_image(image_url, "image.png", task_path)
+        await file_processor.download_image(image_url, filename, task_path)
 
         return image_url
 
@@ -213,10 +211,7 @@ For this subject:""")
         """
         Generate a list of subjects from the given content using Mistral AI.
         """
-        agent=Agent(
-            self.mistral_model,
-            result_type=List[str],
-            system_prompt= f"""
+        agent=Agent(self.mistral_model, result_type=List[str], system_prompt= f"""
 Generate a list of key subjects from the given content, give enough info about the subject and don't repeat key subjects.
 Every subject has to be unique in the list.
 The subject needs to have at least 2 words and should be understandable.

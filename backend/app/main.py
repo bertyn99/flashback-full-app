@@ -7,6 +7,7 @@ from fastapi import (FastAPI, File, HTTPException, UploadFile, WebSocket,
                      WebSocketDisconnect)
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+import glob
 
 from .services.ai_service import AIProcessor
 from .services.db_service import db_service
@@ -42,9 +43,21 @@ class UploadResponse(BaseModel):
 
 @app.get("/api/test")
 async def test():
-    subtitles = open("./artifacts/sample/test.srt", "r").read()
-    srt_dict = await ai_processor.format_srt_to_dict(subtitles)
-    await export_subjects_to_image_prompts(srt_dict)
+    task_path = "./artifacts/sample"
+    image_prompts = []
+    for filepath in glob.glob(os.path.join(task_path, "image_prompt_*.txt")):
+        with open(filepath, "r") as f:
+            image_prompts.append(f.read())
+    # Generate image for each prompt
+    for idx, prompt in enumerate(image_prompts):
+        print("generating image for", idx, prompt)
+        image_path = await ai_processor.generate_image(prompt, f"image_{idx}.png", task_path)
+        print(image_path)
+
+    # subtitles = open("./artifacts/sample/test.srt", "r").read()
+    # srt_dict = await ai_processor.format_srt_to_dict(subtitles)
+    # await export_subjects_to_image_prompts(srt_dict)
+
     return {"message": "ok"}
 
 @app.post("/api/upload")
@@ -196,7 +209,14 @@ async def websocket_processing(
             await export_subjects_to_image_prompts(srt_dict)
 
             # Generate image/visual
-            image_path = await ai_processor.generate_image(script, task_path)
+            image_prompts = []
+            for filepath in glob.glob(os.path.join(task_path, "image_prompt_*.txt")):
+                with open(filepath, "r") as f:
+                    image_prompts.append(f.read())
+
+            # Generate image for each prompt
+            for idx, prompt in enumerate(image_prompts):
+                image_path = await ai_processor.generate_image(prompt, f"image_{idx}.png", task_path)
 
             # Merge into video
             video_path = await video_processor.create_video(
