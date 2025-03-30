@@ -143,21 +143,24 @@ async def websocket_processing(
         # Retrieve stored file and chapters
         chapters = await db_service.get_chapters(task_id)
 
-        print(chapters)
-
-        # Process selected chapters
+         # Process selected chapters
         selected_chapters = chapters[start_chapter : end_chapter + 1]
 
+        """  print(chapters)
+
+       
         script = await ai_processor.generate_script(
             selected_chapters[0], content_type=content_type
         )
-        print(script)
-        # Generate voiceover
-        audio_path = "./videos/audio/audio_2109b2b8-df3c-465a-af46-aecdf223e8d8.mp3"  # await ai_processor.generate_voiceover(script) """
+        print(script) 
+             # Generate voiceover
+        audio_path =  await ai_processor.generate_voiceover(script) #./videos/audio/audio_2109b2b8-df3c-465a-af46-aecdf223e8d8.mp3
         # Generate subtitles
         subtitles = await ai_processor.generate_subtitles(audio_path)
+        """
+       
 
-        """   for idx, chapter in enumerate(selected_chapters):
+        for idx, chapter in enumerate(selected_chapters):
             # Update progress
             await websocket.send_json({
                 "status": "processing",
@@ -177,7 +180,7 @@ async def websocket_processing(
             subtitles = await ai_processor.generate_subtitles(audio_path)
 
             # Generate image/visual
-            image_path = await ai_processor.generate_image(script, task_path)
+            image_path = await ai_processor.generate_image(script, task_id)
 
             # Merge into video
             video_path = await video_processor.create_video(
@@ -196,7 +199,7 @@ async def websocket_processing(
 
             # Optional: small delay between chapters
             await asyncio.sleep(1)
-        """
+        
         # Final completion message
         await websocket.send_json(
             {"status": "completed", "message": "All chapters processed successfully"}

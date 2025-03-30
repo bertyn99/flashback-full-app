@@ -71,8 +71,9 @@ class AIProcessor:
                 mime_type = mimetypes.guess_type(audio_path)[0] or "audio/mp3"
                 print(mime_type)
               
-                payload =  f"-----011000010111000001101001\r\nContent-Disposition: form-data; name=\"audio\"; filename=\"${filename}\"\r\nContent-Type: ${mime_type}\r\n\r\n\r\n-----011000010111000001101001--\r\n"
+                payload =  f"-----011000010111000001101001\r\nContent-Disposition: form-data; name=\"audio\"; filename=\"{filename}\"\r\nContent-Type: {mime_type}\r\n\r\n\r\n-----011000010111000001101001--\r\n"
 
+                print(payload)
                 # Upload the file
                 headers = {
                     "Content-Type": "multipart/form-data; boundary=---011000010111000001101001",
