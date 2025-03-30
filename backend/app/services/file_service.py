@@ -2,6 +2,7 @@
 import pymupdf4llm
 from typing import List
 from ..models import Chapter
+import requests
 import re
 
 class FileProcessor:
@@ -12,13 +13,15 @@ class FileProcessor:
         return content
 
     @staticmethod
-    async def download_image(url: str, name: str, path: str) -> str:
+    async def download_image(url: str, name: str, path: str):
         """Download image from url to path/name"""
         response = requests.get(url)
-        content = response.content
-        with open(f"{path}/{name}", "w") as f:
-            f.write(content)
-        return content
+        try:
+            with open(f"{path}/{name}", "wb") as buffer:
+                buffer.write(response.content)
+                buffer.close()
+        except IOError as e:
+            raise HTTPException(status_code=500, detail=f"Error saving file: {str(e)}")
 
     @staticmethod
     def split_into_chapters(markdown_content: str) -> List[Chapter]:
