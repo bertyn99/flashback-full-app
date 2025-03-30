@@ -8,6 +8,13 @@ from fastapi import (FastAPI, File, HTTPException, UploadFile, WebSocket,
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import glob
+import uuid
+from typing import List, Optional
+
+from fastapi import (FastAPI, File, HTTPException, UploadFile, WebSocket,
+                     WebSocketDisconnect)
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 from .services.ai_service import AIProcessor
 from .services.db_service import db_service
@@ -84,7 +91,7 @@ async def upload_file(file: UploadFile = File(...)):
 
         # Generate a unique task ID
         task_id = str(uuid.uuid4())
-        task_path  = f"./artifacts/{task_id}"
+        task_path = f"./artifacts/{task_id}"
         os.makedirs(task_path, exist_ok=True)
 
         # Save uploaded file temporarily
@@ -187,15 +194,14 @@ async def websocket_processing(
         """  for idx, chapter in enumerate(selected_chapters): """
         print(selected_chapters)
         script = await ai_processor.generate_script(
-                selected_chapters[0],
-                content_type=content_type
-            )
+            selected_chapters[0], content_type=content_type
+        )
         print(script)
-            # Generate voiceover
-        audio_path = "./videos/audio/audio_2109b2b8-df3c-465a-af46-aecdf223e8d8.mp3" # await ai_processor.generate_voiceover(script) """
+        # Generate voiceover
+        audio_path = "./videos/audio/audio_2109b2b8-df3c-465a-af46-aecdf223e8d8.mp3"  # await ai_processor.generate_voiceover(script) """
         # Generate subtitles
         subtitles = await ai_processor.generate_subtitles(audio_path)
-        
+
         """   for idx, chapter in enumerate(selected_chapters):
             # Update progress
             await websocket.send_json({
