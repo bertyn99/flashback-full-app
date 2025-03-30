@@ -1,3 +1,4 @@
 backend/.env
 backend/tasks.db
-backend/artifacts
+backend/artifacts/*
+!backend/artifacts/sample/test.srt
