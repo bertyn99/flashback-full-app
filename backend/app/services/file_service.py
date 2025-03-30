@@ -12,6 +12,15 @@ class FileProcessor:
         return content
 
     @staticmethod
+    async def download_image(url: str, name: str, path: str) -> str:
+        """Download image from url to path/name"""
+        response = requests.get(url)
+        content = response.content
+        with open(f"{path}/{name}", "w") as f:
+            f.write(content)
+        return content
+
+    @staticmethod
     def split_into_chapters(markdown_content: str) -> List[Chapter]:
         """Split markdown content into chapters"""
         chapters = []

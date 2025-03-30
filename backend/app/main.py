@@ -9,7 +9,7 @@ import os
 from .services.file_service import FileProcessor
 from .services.ai_service import AIProcessor
 from .services.video_service import VideoProcessor
-from .services.db_service import db_service 
+from .services.db_service import db_service
 
 app = FastAPI()
 
@@ -44,15 +44,15 @@ async def upload_file(
         # Validate file
         if not file.filename:
             raise HTTPException(status_code=400, detail="No file name provided")
-        
+
         # Check file size (optional, example limit of 100MB)
         file.file.seek(0, 2)  # Go to end of file
         file_size = file.file.tell()
         file.file.seek(0)  # Reset file pointer
-        
+
         if file_size > 100 * 1024 * 1024:  # 100 MB
             raise HTTPException(status_code=413, detail="File too large. Maximum size is 100MB")
-        
+
         # Save uploaded file temporarily
         temp_path = f"./videos/tmp/{file.filename}"
         try:
@@ -60,7 +60,7 @@ async def upload_file(
                 buffer.write(await file.read())
         except IOError as e:
             raise HTTPException(status_code=500, detail=f"Error saving file: {str(e)}")
-        
+
         # Process file and split into chapters
         try:
             content = await file_processor.process_file(temp_path)
@@ -70,30 +70,31 @@ async def upload_file(
             # Clean up temporary file
             os.remove(temp_path)
             raise HTTPException(status_code=422, detail=f"Error processing file: {str(e)}")
-        
+
         # Generate a unique task ID
         task_id = str(uuid.uuid4())
-        
+
+
         # Store task context in SQLite
         await db_service.store_task(
-            task_id=task_id, 
-            filename=file.filename, 
+            task_id=task_id,
+            filename=file.filename,
             chapters=[
-                {"title": chapter} 
+                {"title": chapter}
                 for chapter in chapters_of_subject
-            ]   
+            ]
         )
-        
+
         # Store task context (could use Redis or another state management)
         return UploadResponse(
             task_id=task_id,
             chapters=[chapter for chapter in chapters_of_subject]
         )
-    
+
     except HTTPException:
         # Re-raise HTTPException to be handled by FastAPI
         raise
-    
+
     except Exception as e:
         # Catch any unexpected errors
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
@@ -101,17 +102,24 @@ async def upload_file(
         # Ensure file is closed
         if 'file' in locals():
             await file.close()
-        
+
         # Remove temporary file if it exists
         if 'temp_path' in locals() and os.path.exists(temp_path):
             os.remove(temp_path)
 
+
+@app.get("/api/seelab")
+async def see_lab():
+    image_url = await ai_processor.generate_image("test")
+    return {"message": image_url}
+
+
 @app.websocket("/ws/process")
 async def websocket_processing(
-   websocket: WebSocket, 
-    task_id: str, 
-    content_type: str = "KeyMoment", 
-    start_chapter: int = 0, 
+    websocket: WebSocket,
+    task_id: str,
+    content_type: str = "KeyMoment",
+    start_chapter: int = 0,
     end_chapter: int = 3
 ):
     # Validate input parameters
@@ -122,14 +130,16 @@ async def websocket_processing(
     await websocket.accept()
     print('ici')
     try:
-       
+
         # Retrieve stored file and chapters
         chapters = await db_service.get_chapters(task_id)
-        
-    
+
+        print(chapters)
+
         # Process selected chapters
         selected_chapters = chapters[start_chapter:end_chapter+1]
-        
+
+        print(selected_chapters)
         for idx, chapter in enumerate(selected_chapters):
             # Update progress
             await websocket.send_json({
@@ -137,49 +147,45 @@ async def websocket_processing(
                 "chapter": idx + 1,
                 "total_chapters": len(selected_chapters)
             })
-            
-            print(chapter)
             # Generate script based on content type
             script = await ai_processor.generate_script(
-                chapter, 
+                chapter,
                 content_type=content_type
             )
-            
-            print(script)
+
             # Generate voiceover
             audio_path = await ai_processor.generate_voiceover(script)
-            print(audio_path)
-            
+
             # Generate subtitles
             subtitles = await ai_processor.generate_subtitles(audio_path)
-            
+
             # Generate image/visual
-            image_path = await ai_processor.generate_image(script, content_type)
-            
+            image_path = await ai_processor.generate_image(script, task_id)
+
             # Merge into video
             video_path = await video_processor.create_video(
-                script, 
-                audio_path, 
-                subtitles, 
+                script,
+                audio_path,
+                subtitles,
                 image_path
             )
-            
+
             # Send video path
             await websocket.send_json({
                 "status": "chapter_complete",
                 "video_path": video_path,
                 "chapter_title": chapter.title
             })
-            
+
             # Optional: small delay between chapters
             await asyncio.sleep(1)
-        
+
         # Final completion message
         await websocket.send_json({
             "status": "completed",
             "message": "All chapters processed successfully"
         })
-    
+
     except Exception as e:
         await websocket.send_json({
             "status": "error",
