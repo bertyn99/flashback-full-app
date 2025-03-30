@@ -53,11 +53,18 @@ async def upload_file(
         if file_size > 100 * 1024 * 1024:  # 100 MB
             raise HTTPException(status_code=413, detail="File too large. Maximum size is 100MB")
 
+        # Generate a unique task ID
+        task_id = str(uuid.uuid4())
+        task_path  = f"./artifacts/{task_id}"
+        os.makedirs(task_path, exist_ok=True)
+
         # Save uploaded file temporarily
-        temp_path = f"./videos/tmp/{file.filename}"
+
+        temp_path = f"{task_path}/{file.filename}"
         try:
             with open(temp_path, "wb") as buffer:
                 buffer.write(await file.read())
+                buffer.close()
         except IOError as e:
             raise HTTPException(status_code=500, detail=f"Error saving file: {str(e)}")
 
@@ -70,10 +77,6 @@ async def upload_file(
             # Clean up temporary file
             os.remove(temp_path)
             raise HTTPException(status_code=422, detail=f"Error processing file: {str(e)}")
-
-        # Generate a unique task ID
-        task_id = str(uuid.uuid4())
-
 
         # Store task context in SQLite
         await db_service.store_task(
@@ -110,7 +113,11 @@ async def upload_file(
 
 @app.get("/api/seelab")
 async def see_lab():
-    image_url = await ai_processor.generate_image("test")
+    task_id = str(uuid.uuid4())
+    task_path  = f"./artifacts/{task_id}"
+    os.makedirs(task_path, exist_ok=True)
+
+    image_url = await ai_processor.generate_image("test", task_path)
     return {"message": image_url}
 
 
@@ -128,7 +135,6 @@ async def websocket_processing(
         return
 
     await websocket.accept()
-    print('ici')
     try:
 
         # Retrieve stored file and chapters
@@ -170,7 +176,7 @@ async def websocket_processing(
             subtitles = await ai_processor.generate_subtitles(audio_path)
 
             # Generate image/visual
-            image_path = await ai_processor.generate_image(script, task_id)
+            image_path = await ai_processor.generate_image(script, task_path)
 
             # Merge into video
             video_path = await video_processor.create_video(

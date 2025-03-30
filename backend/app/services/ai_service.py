@@ -11,6 +11,8 @@ from ..models import Chapter
 from ..config import settings
 from .file_service import FileProcessor
 
+file_processor = FileProcessor()
+
 class AIProcessor:
     def __init__(self):
         # Initialize Mistral model with PydanticAI
@@ -19,10 +21,7 @@ class AIProcessor:
             provider=MistralProvider(api_key=settings.MISTRAL_API_KEY)
         )
         self.agent = Agent(self.mistral_model)
-
-        self.elevenlabs_client =  ElevenLabs(
-    api_key=settings.ELEVEN_API_KEY,
-)
+        self.elevenlabs_client =  ElevenLabs(api_key=settings.ELEVEN_API_KEY)
         # Gladia API configuration
         self.gladia_api_key = settings.GLADIA_API_KEY
         self.gladia_base_url = "https://api.gladia.io/v2/"
@@ -41,7 +40,6 @@ class AIProcessor:
             "KeyCharacter": self._generate_character_script,
             "Quiz": self._generate_quiz_script
         }
-      
         # Select appropriate prompt generator
         generator = prompt_templates.get(content_type, self._generate_default_script)
 
@@ -88,14 +86,15 @@ class AIProcessor:
 
     async def _generate_vs_script(self, chapter):
         # VS-specific script generation logic
-        agent=Agent(model="mistral-large-latest",  system_prompt="Generate a list of subjects from the given content.")
+        agent=Agent(
+            model="mistral-large-latest",
+            system_prompt="Generate a list of subjects from the given content."
+        )
         list_of_subject = await agent.run(chapter)
         return list_of_subject
 
     async def _generate_key_moment_script(self, chapter):
-        print('ici')
-        agent=Agent(self.mistral_model,  system_prompt= f"""
-
+        agent=Agent(self.mistral_model, system_prompt= f"""
 enrich the content and create a short script for a Short Video to explain the subject in a fun way.
 The complete vocal script must not have more than 300 words. Always include a date. Additionally, include important people or events.
 Keep the content in French.
@@ -115,8 +114,7 @@ For this  subject:""")
 
     async def _generate_default_script(self, chapter):
         # Fallback script generation
-        agent=Agent(self.mistral_model,  system_prompt= f"""
-
+        agent=Agent(self.mistral_model, system_prompt= f"""
 enrich the content and create a short script for a Short Video to explain the subject in a fun way.
 The complete vocal script must not have more than 300 words. Always include a date. Additionally, include important people or events.
 Keep the content in French.
@@ -126,7 +124,7 @@ For this historical subject:""")
         default_scrypt = await agent.run(chapter)
         return default_scrypt
 
-    async def generate_image(self, script: str) -> str:
+    async def generate_image(self, script: str, task_path: str) -> str:
         """Generate image based on script and content type"""
         # Use an image generation service like Seelab, DALL-E, Midjourney, etc.
         url = "https://app.seelab.ai/api/predict/text-to-image"
@@ -146,11 +144,10 @@ For this historical subject:""")
             "Authorization": f"Token {self.seelab_api_key}"
         }
         response = requests.post(url, json=payload, headers=headers)
-        print(response.text)
         json_response = response.json()
         image_url = json_response["result"]["image"][0]["url"]
 
-        await file_processor.download_image(image_url, "image.png", "./tmp")
+        await file_processor.download_image(image_url, "image.png", task_path)
 
         return image_url
 
@@ -159,6 +156,12 @@ For this historical subject:""")
         """
         Generate a list of subjects from the given content using Mistral AI.
         """
-        agent=Agent( self.mistral_model,result_type=List[str],  system_prompt="Generate a list of key subjects from the given content give enough info about the subject and dont repeat key subject each need to be unique in the list.The need subject need to have at least 2 word and need to be enough comprehensible if we need to generate a short video about it. Gave just the list of subject.")
+        agent=Agent(
+            self.mistral_model,
+            result_type=List[str],
+            system_prompt= f"""
+Generate a list of key subjects from the given content give enough info about the subject and dont repeat key subject
+each need to be unique in the list.The need subject need to have at least 2 word and need to be enough comprehensible
+if we need to generate a short video about it. Gave just the list of subject.""")
         list_of_subject = await agent.run(content)
         return list_of_subject.data
