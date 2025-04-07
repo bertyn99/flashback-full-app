@@ -173,10 +173,15 @@ async def websocket_processing(
 
         # Retrieve stored file and chapters
         chapters = await db_service.get_chapters(task_id)
-
+        
          # Process selected chapters
         selected_chapters = chapters[start_chapter : end_chapter + 1]
-
+        # Update progress
+        await websocket.send_json({
+                "status": "processing",
+                "chapter": 1,
+                "total_chapters": len(selected_chapters)
+            })
         """  print(chapters)
 
        
@@ -192,16 +197,67 @@ async def websocket_processing(
        
 
         """  for idx, chapter in enumerate(selected_chapters): """
-        print(selected_chapters)
-        script = await ai_processor.generate_script(
-            selected_chapters[0], content_type=content_type
-        )
-        print(script)
-        # Generate voiceover
-        audio_path = "./videos/audio/audio_2109b2b8-df3c-465a-af46-aecdf223e8d8.mp3"  # await ai_processor.generate_voiceover(script) """
-        # Generate subtitles
-        subtitles = await ai_processor.generate_subtitles(audio_path)
+   
+        # Generate script based on content type
+    
+        script =f''' **Titre : "Le Mystère de la Tour Eiffel : Une Aventure Parisienne"**
 
+Bonjour à tous ! Aujourd'hui, nous allons parler d'un des monuments les plus célèbres au monde : la Tour Eiffel. Imaginez-vous à Paris, le 31 mars 1889. C'est le jour de l'inauguration de cette merveille d'ingénierie. Mais saviez-vous que cette tour n'était pas destinée à rester éternellement ?
+
+La Tour Eiffel a été construite par Gustave Eiffel pour l'Exposition universelle de 1889, célébrant le centenaire de la Révolution française. À l'origine, elle devait être démontée en 1909. Oui, vous avez bien entendu ! Mais grâce à ses antennes de communication, elle a été sauvée et est devenue un symbole incontournable de Paris.
+
+Gustave Eiffel, l'ingénieur génial derrière cette prouesse, a même installé un appartement secret au sommet de la tour. Il y recevait des invités prestigieux, comme Thomas Edison. Imaginez les conversations qu'ils ont pu avoir là-haut !
+
+La Tour Eiffel a également été le théâtre de nombreux événements historiques. Pendant la Première Guerre mondiale, elle a servi de poste d'observation pour repérer les mouvements ennemis. Et saviez-vous que pendant la Seconde Guerre mondiale, Hitler a ordonné de la faire exploser ? Heureusement, les ingénieurs français ont saboté les charges, sauvant ainsi ce monument emblématique.
+
+Aujourd'hui, la Tour Eiffel attire près de 7 millions de visiteurs chaque année. Elle est le témoin silencieux de l'histoire de Paris et de ses habitants. Alors, la prochaine fois que vous la verrez, pensez à toutes les aventures et les secrets qu'elle cache.
+
+Merci d'avoir regardé cette vidéo ! N'oubliez pas de liker et de vous abonner pour plus de contenu passionnant. À bientôt ! '''
+        """ await ai_processor.generate_script(
+            selected_chapters[0], content_type=content_type
+        ) """
+        await websocket.send_json({
+             "status": "processing",
+             "chapter": 0,
+             "event":"Script of the video generated",
+         })
+
+        
+        # Generate voiceover
+        audio_path = "https://pub-626b7239837a459b978e84a3f4da7768.r2.dev/audio_0.mp3" #await ai_processor.generate_voiceover(script,task_id,0) 
+        await websocket.send_json({
+             "status": "processing",
+             "chapter": 0,
+             "event":"Voiceover generated",
+         })
+        print(audio_path)
+        
+        
+        # Generate subtitles
+        subtitles =await ai_processor._poll_transcription_status("ff13b662-51c5-4881-b2d3-432ea8a8be10") # await ai_processor.generate_subtitles(audio_path) # 
+        await websocket.send_json({
+             "status": "processing",
+             "chapter": 0,
+             "event":"Subtitles generated",
+         })
+        
+        # format srt to python dict of subtitles
+        srt_dict = await ai_processor.format_srt_to_dict(subtitles["result"]["transcription"]["utterances"])
+        await websocket.send_json({
+             "status": "processing",
+             "chapter": 0,
+             "event":"Subtitles formatted",
+         })
+        
+        
+        truncatedScene= await ai_processor.prepare_image_prompt(script)
+
+        print(truncatedScene)
+        await websocket.send_json({
+             "status": "processing",
+             "chapter": 0,
+             "event":"Image prompt generated",
+         })
         """   for idx, chapter in enumerate(selected_chapters):
             # Update progress
             await websocket.send_json({
@@ -260,6 +316,7 @@ async def websocket_processing(
         )
 
     except Exception as e:
+        print(e)
         await websocket.send_json({"status": "error", "message": str(e)})
     finally:
         await websocket.close()
@@ -283,3 +340,7 @@ async def export_subjects_to_image_prompts(subjects: List[str], output_dir: str 
                 f.write(image_prompt)
         print(image_prompt)
         await asyncio.sleep(3)
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app)

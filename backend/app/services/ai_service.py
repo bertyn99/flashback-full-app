@@ -1,4 +1,6 @@
+import asyncio
 import mimetypes
+from pydantic import BaseModel
 from pydantic_ai import Agent
 from pydantic_ai.models.mistral import MistralModel
 from pydantic_ai.providers.mistral import MistralProvider
@@ -14,6 +16,15 @@ from ..config import settings
 from .file_service import FileProcessor
 
 file_processor = FileProcessor()
+
+class Scene(BaseModel):
+    prompt: str
+    segment: str
+
+class Scenes(BaseModel):
+    scenes: List[Scene]
+    
+
 
 class AIProcessor:
     def __init__(self):
@@ -51,58 +62,62 @@ class AIProcessor:
 
         return await self._generate_key_moment_script(chapter)
 
-    async def generate_voiceover(self, text: str) -> str:
+    async def generate_voiceover(self, text: str,task_id: str, idx: int = 0) -> str:
         """Generate voice over using Eleven Labs"""
         audio = self.elevenlabs_client.text_to_speech.convert(
             text=text,
-            voice_id=self.eleven_voice_id,
+            voice_id=self.elevenlabs_voice_id,
             model_id=self.elevenlabs_model
         )
-
+        
+        # Ensure directory exists
+        audio_path = f"./artifacts/{task_id}/audio"
+        os.makedirs(audio_path, exist_ok=True)
         # Save audio file and return path
-        audio_path = f"./videos/audio/audio_{uuid.uuid4()}.mp3"
+        audio_path = f"{audio_path}/audio_{idx}.mp3"
         save(audio, audio_path)
-        return audio_path
+        
+        # Upload to R2
+        r2_url = await file_processor.upload_to_r2(
+                audio_path,
+                content_type="audio/mpeg"
+            )
+        return r2_url
 
     async def generate_subtitles(self, audio_path: str) -> Dict[str, Any]:
         """Generate subtitles using Gladia API via HTTP"""
     
         try:
         # Prepare the audio file for upload
-            with open(audio_path, "rb") as audio_file:
-                # Prepare the files dictionary
-                filename = os.path.basename(audio_path)
-                mime_type = mimetypes.guess_type(audio_path)[0] or "audio/mp3"
-                print(mime_type)
-              
-                payload =  f"-----011000010111000001101001\r\nContent-Disposition: form-data; name=\"audio\"; filename=\"{filename}\"\r\nContent-Type: {mime_type}\r\n\r\n\r\n-----011000010111000001101001--\r\n"
-
-                print(payload)
-                # Upload the file
-                headers = {
-                    "Content-Type": "multipart/form-data; boundary=---011000010111000001101001",
-                    "x-gladia-key": self.gladia_api_key
-                }
-
-                
-                
-                # Additional parameters for transcription if needed
-                data = {
-                    "language": "fr",  # Assuming French based on your script generation
-                    "subtitles_format": "srt"
-                }
-                
-                # Make the transcription request
-                response = requests.post(
-                    f"{self.gladia_base_url}upload",
-                    headers=headers,
-                    data=payload
-                )
-                
-                print(f"Gladia API response status: {response.status_code}")
-                
-            if response.status_code == 200:
-                return response.json()
+            # Upload the file
+            headers = {
+                "Content-Type": "application/json",
+                "x-gladia-key": self.gladia_api_key
+            }
+            
+            # Additional parameters for transcription if needed
+            data = {
+                "audio_url": audio_path,
+                "language": "fr",  # Assuming French based on your script generation
+                # "sentences": True
+            }
+            
+            print(data)
+    
+            # Make the transcription request
+            response = requests.post(
+                f"{self.gladia_base_url}pre-recorded",
+                headers=headers,
+                json=data
+            )
+            
+            print(f"Gladia API response status: {response.status_code}")
+            
+            if response.status_code == 200 or response.status_code == 201:
+                result = response.json()
+                transcription_id = result.get("id")
+                return await self._poll_transcription_status(transcription_id, headers)
+          
             else:
                 print(f"Error response: {response.text}")
                 response.raise_for_status()
@@ -117,28 +132,71 @@ class AIProcessor:
             else:
                     # Handle error cases
                 response.raise_for_status()
+                
+    async def _poll_transcription_status(self, transcription_id: str, headers: dict|None = None) -> Dict[str, Any]:
+        """Poll for transcription status"""
+        max_attempts = 30  # Maximum number of polling attempts
+        poll_interval = 2  # Seconds between polls
+        
+        for attempt in range(max_attempts):
+            try:
+                if headers is None:
+                    baseHeader = {
+                        "Content-Type": "application/json",
+                        "x-gladia-key": self.gladia_api_key
+                    }
+                else:
+                    baseHeader = headers
+                
+                response = requests.get(
+                    f"{self.gladia_base_url}pre-recorded/{transcription_id}",
+                    headers=baseHeader
+                )
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    status = result.get("status")
+                    
+                    if status == "done":
+                        return result
+                    elif status == "error":
+                        raise Exception(f"Transcription failed: {result.get('error')}")
+                
+                # Wait before next poll
+                await asyncio.sleep(poll_interval)
+                
+            except Exception as e:
+                print(f"Error polling transcription status: {e}")
+                raise
+        
+        raise Exception("Transcription timed out")
 
-    async def format_srt_to_dict(self, subtitles: str) -> Dict[str, Any]:
-        """Format subtitles from SRT format to a dictionary"""
-        agent=Agent(self.mistral_model, system_prompt= f"""
-Extract all the sentences from the given content.
-Ignore timecodes, index numbers, and formatting tags.
-Output only a Python list of strings, where each string is a sentence from the subtitles.
-Return only the list, no explanation or extra text.
+    async def format_srt_to_dict(self, subtitles: List[Dict[str, Any]]) -> List[str]:
+        """Extract text from subtitles array
+        
+        Args:
+            subtitles: List of subtitle objects with 'text' field obtained from gladia
+            
+        Returns:
+            List of extracted text strings
+        """
+        return [subtitle["text"] for subtitle in subtitles]
 
-the content of the srt file:""")
-        default_scrypt = await agent.run(subtitles)
-        return default_scrypt.data
-
-    async def prepare_image_prompt(self, subject: str) -> Dict[str, Any]:
+    # TODO : 
+    async def prepare_image_prompt(self, subject: str) -> any:
         print("preparing image prompt for subject:", subject)
+        
         """Prepare image prompt for the given subject"""
         chatResponse = await self.mistral_client.agents.complete_async(messages=[
             {
-                "content": subject,
                 "role": "user",
+                "content": subject,
+               
             },
-        ], agent_id=settings.MISTRAL_AGENT_IMAGE_PROMPT)
+        ],response_format={"type": "json_object"}
+          , agent_id=settings.MISTRAL_AGENT_IMAGE_PROMPT)
+        
+        print(chatResponse)
         return chatResponse.choices[0].message.content
 
     async def _generate_vs_script(self, chapter):

@@ -12,6 +12,14 @@ class Settings(BaseSettings):
     GLADIA_API_KEY: str
     SEELAB_API_KEY: str
 
+    # Cloudflare R2 settings
+    R2_ACCOUNT_ID: str
+    R2_ACCESS_KEY_ID: str
+    R2_CL_KEY: str
+    R2_SECRET_ACCESS_KEY: str
+    R2_BUCKET_NAME: str
+    R2_ENDPOINT_URL: str  # Format: https://<account_id>.r2.cloudflarestorage.com
+    R2_PUBLIC_URL: str  # Format: https://pub-<account_id>.r2.dev
     # Base URLs and endpoints
     GLADIA_BASE_URL: str = "https://api.gladia.io/v2/"
 
