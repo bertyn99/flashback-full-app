@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     ELEVEN_VOICE_ID: str
     GLADIA_API_KEY: str
     SEELAB_API_KEY: str
+    GEMINI_API_KEY: str
 
     # Cloudflare R2 settings
     R2_ACCOUNT_ID: str

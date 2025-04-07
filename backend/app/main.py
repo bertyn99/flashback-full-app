@@ -67,6 +67,10 @@ async def test():
 
     return {"message": "ok"}
 
+@app.get("/api/seelab")
+async def seelab():
+    return await ai_processor.generate_image("A bustling 19th-century Paris street scene with people in period clothing, horse-drawn carriages, and the Eiffel Tower under construction in the background. The date '31 mars 1889' is prominently displayed.", "paris", "./artifacts/sample")
+
 @app.post("/api/upload")
 async def upload_file(file: UploadFile = File(...)):
     try:
@@ -143,6 +147,9 @@ async def upload_file(file: UploadFile = File(...)):
         # Remove temporary file if it exists
         if "temp_path" in locals() and os.path.exists(temp_path):
             os.remove(temp_path)
+        
+        
+        
 
 
 @app.get("/api/seelab")
@@ -250,66 +257,15 @@ Merci d'avoir regardé cette vidéo ! N'oubliez pas de liker et de vous abonner 
          })
         
         
-        truncatedScene= await ai_processor.prepare_image_prompt(script)
+        truncatedScene= await export_subjects_to_image_prompts(script,f'''./artifacts/{task_id}''')
 
-        print(truncatedScene)
+
         await websocket.send_json({
              "status": "processing",
              "chapter": 0,
              "event":"Image prompt generated",
          })
-        """   for idx, chapter in enumerate(selected_chapters):
-            # Update progress
-            await websocket.send_json({
-                "status": "processing",
-                "chapter": idx + 1,
-                "total_chapters": len(selected_chapters)
-            })
-
-            # Generate script based on content type
-            script = await ai_processor.generate_script(
-                chapter,
-                content_type=content_type
-            )
-
-            # Generate voiceover
-            audio_path = await ai_processor.generate_voiceover(script)
-
-            # Generate subtitles
-            subtitles = await ai_processor.generate_subtitles(audio_path)
-
-            # format srt to python dict of subtitles
-            srt_dict = await ai_processor.format_srt_to_dict(subtitles)
-            await export_subjects_to_image_prompts(srt_dict)
-
-            # Generate image/visual
-            image_prompts = []
-            for filepath in glob.glob(os.path.join(task_path, "image_prompt_*.txt")):
-                with open(filepath, "r") as f:
-                    image_prompts.append(f.read())
-
-            # Generate image for each prompt
-            for idx, prompt in enumerate(image_prompts):
-                image_path = await ai_processor.generate_image(prompt, f"image_{idx}.png", task_path)
-
-            # Merge into video
-            video_path = await video_processor.create_video(
-                script,
-                audio_path,
-                subtitles,
-                image_path
-            )
-
-            # Send video path
-            await websocket.send_json({
-                "status": "chapter_complete",
-                "video_path": video_path,
-                "chapter_title": chapter.title
-            })
-
-            # Optional: small delay between chapters
-            await asyncio.sleep(1)
-        """
+    
         # Final completion message
         await websocket.send_json(
             {"status": "completed", "message": "All chapters processed successfully"}
@@ -329,17 +285,84 @@ async def get_chapters_for_task(task_id: str):
     # You'd want to implement proper task/state management
     pass
 
-async def export_subjects_to_image_prompts(subjects: List[str], output_dir: str = "./artifacts/sample") -> None:
-    """Export each subject to an image prompt file in the specified directory"""
-    for idx, subject in enumerate(subjects):
-        image_prompt = await ai_processor.prepare_image_prompt(subject)
-        print(image_prompt)
-        filename = f"{output_dir}/image_prompt_{idx}.txt"
-        if not os.path.exists(filename):
-            with open(filename, "w") as f:
-                f.write(image_prompt)
-        print(image_prompt)
-        await asyncio.sleep(3)
+async def export_subjects_to_image_prompts(subject: str, output_dir: str = "./artifacts/sample") -> None:
+    """Export each scene from a subject to an image prompt file in the specified directory"""
+    try:
+        # Get scene prompts from the subject
+        scene_prompts = await ai_processor.prepare_scene_prompt(subject)
+        
+        if not scene_prompts or 'scenes' not in scene_prompts:
+            print("Error: No valid scenes found in the response")
+            return None
+
+        
+        # Create output directory if it doesn't exist
+        try:
+            os.makedirs(f"{output_dir}/scenes/prompts", exist_ok=True)
+        except OSError as e:
+            print(f"Error creating directories: {e}")
+            return None
+
+        sceneImgPath: List[str] = []
+        
+        # Loop through each scene prompt
+        try:
+            for idx, scene in enumerate(scene_prompts['scenes']):
+                try:
+                    # Extract the prompt property from the scene
+                    image_prompt = scene.get("prompt")
+                    if not image_prompt:
+                        print(f"Warning: No prompt found for scene {idx}")
+                        continue
+                        
+                    print(f"Scene {idx} prompt:", image_prompt)
+                    
+                    # Generate filename for this scene
+                    filename = f"{output_dir}/scenes/prompts/image_prompt_{idx}.txt"
+                    
+                    # Write prompt to file if it doesn't exist
+                    try:
+                        if not os.path.exists(filename):
+                            with open(filename, "w") as f:
+                                f.write(image_prompt)
+                    except IOError as e:
+                        print(f"Error writing prompt file for scene {idx}: {e}")
+                        continue
+                    
+                    # Call image generation API with the prompt
+                    try:
+                        image = await ai_processor.generate_image(
+                            image_prompt, 
+                            f"scene_{idx}", 
+                            f"{output_dir}/scenes"
+                        )
+                        print(image)
+                        sceneImgPath.append(image)
+                    except Exception as e:
+                        print(f"Error generating image for scene {idx}: {e}")
+                        continue
+                    
+                    # Add delay between processing scenes
+                    await asyncio.sleep(6)
+                    
+                except KeyError as e:
+                    print(f"Error processing scene {idx}: {e}")
+                    continue
+                    
+            print("Scene prompts saved successfully!")
+            print(sceneImgPath)
+            return sceneImgPath
+            
+        except Exception as e:
+            print(f"Error processing scenes: {e}")
+            return None
+            
+    except Exception as e:
+        print(f"Fatal error in export_subjects_to_image_prompts: {e}")
+        return None
+    
+
+        
 
 if __name__ == "__main__":
     import uvicorn

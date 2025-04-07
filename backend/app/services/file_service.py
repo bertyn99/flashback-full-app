@@ -62,12 +62,12 @@ class FileProcessor:
             content_type = response.headers.get('Content-Type')
             r2_url = await self.upload_to_r2(temp_file_path, content_type)
 
-            os.remove(temp_file_path)
-
+            buffer.close()
+         
             return r2_url
         except IOError as e:
-            if os.path.exists(temp_file_path):
-                os.remove(temp_file_path)
+            """ if os.path.exists(temp_file_path):
+                os.remove(temp_file_path) """
             raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
 
     @staticmethod

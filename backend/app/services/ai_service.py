@@ -1,9 +1,14 @@
 import asyncio
+import json
 import mimetypes
+from google import genai
+from google.genai import types
 from pydantic import BaseModel
 from pydantic_ai import Agent
 from pydantic_ai.models.mistral import MistralModel
 from pydantic_ai.providers.mistral import MistralProvider
+from pydantic_ai.models.gemini import GeminiModel
+from pydantic_ai.providers.google_gla import GoogleGLAProvider
 from mistralai import Mistral
 from elevenlabs import ElevenLabs, save
 import httpx
@@ -42,8 +47,10 @@ class AIProcessor:
         self.gladia_api_key = settings.GLADIA_API_KEY
         self.gladia_base_url = "https://api.gladia.io/v2/"
 
-        self.seelab_api_key = settings.SEELAB_API_KEY
-        self.seelab_style_id = 1003 # Flux HD
+        self.geminiClient = genai.Client(
+            api_key=settings.GEMINI_API_KEY
+        )
+        self.gemini_api_key = settings.GEMINI_API_KEY
 
     async def generate_script(
         self,
@@ -183,8 +190,7 @@ class AIProcessor:
         return [subtitle["text"] for subtitle in subtitles]
 
     # TODO : 
-    async def prepare_image_prompt(self, subject: str) -> any:
-        print("preparing image prompt for subject:", subject)
+    async def prepare_scene_prompt(self, subject: str) -> any:
         
         """Prepare image prompt for the given subject"""
         chatResponse = await self.mistral_client.agents.complete_async(messages=[
@@ -196,8 +202,13 @@ class AIProcessor:
         ],response_format={"type": "json_object"}
           , agent_id=settings.MISTRAL_AGENT_IMAGE_PROMPT)
         
-        print(chatResponse)
-        return chatResponse.choices[0].message.content
+        # Get the response content and parse it as JSON
+        response_content = chatResponse.choices[0].message.content
+        if isinstance(response_content, str):
+            scenes = json.loads(response_content)
+        else:
+            scenes = response_content # If it's already a dict/list
+        return scenes
 
     async def _generate_vs_script(self, chapter):
         # VS-specific script generation logic
@@ -241,31 +252,51 @@ For this subject:""")
 
     async def generate_image(self, script: str, filename: str, task_path: str) -> str:
         """Generate image based on script and content type"""
-        # Use an image generation service like Seelab, DALL-E, Midjourney, etc.
-        url = "https://app.seelab.ai/api/predict/text-to-image"
-        payload = {
-            "async": False,
-            "styleId": self.seelab_style_id,
-            "params": {
-                "prompt": script,
-                "samples": "1",
-                "seed": 0,
-                "aspectRatio": "1:1"
-            }
-        }
-        headers = {
-            "accept": "application/json",
-            "content-type": "application/json",
-            "Authorization": f"Token {self.seelab_api_key}"
-        }
-        response = requests.post(url, json=payload, headers=headers)
-        json_response = response.json()
-        image_url = json_response["result"]["image"][0]["url"]
+        # Use an image generation service like Gemini, Seelab, DALL-E, Midjourney, etc.
+        model = "gemini-2.0-flash-exp"
+        contents = [
+            types.Content(
+                role="user",
+                parts=[
+                    types.Part.from_text(text=script),
+                ],
+            ),
+        ]
+        generate_content_config = types.GenerateContentConfig(
+            response_modalities=[
+                "image",
+                "text",
+            ],
+            response_mime_type="text/plain",
+        )
 
-        await file_processor.download_image(image_url, filename, task_path)
+        pathImge=""
+        for chunk in self.geminiClient.models.generate_content_stream(
+            model=model,
+            contents=contents,
+            config=generate_content_config,
+        ):  
+            if not chunk.candidates or not chunk.candidates[0].content or not chunk.candidates[0].content.parts:
+                continue
+            if chunk.candidates[0].content.parts[0].inline_data:
+        
+                inline_data = chunk.candidates[0].content.parts[0].inline_data
+                file_extension = mimetypes.guess_extension(inline_data.mime_type)
 
-        return image_url
-
+                pathImge = f"{task_path}/{filename}{file_extension}"
+                f = open(pathImge, "wb")
+                f.write(inline_data.data)
+                f.close()
+                print(
+                    "File of mime type"
+                    f" {inline_data.mime_type} saved"
+                    f"to: {filename}"
+                )
+            else:
+                print(chunk.text)
+            
+        return pathImge
+      
 
     async def generact_list_of_subject(self, content:str):
         """
